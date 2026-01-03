@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>YouTube + Web Speech API (Time-Driven)</title>
+</head>
+<body>
+  <button id="startBtn">Start Video</button>
+  <div id="player"></div>
+
+  <script>
+    let player;
+    let checkTimer = null;
+    let lastAnnouncedSecond = -1;
+
+    // Load YouTube IFrame API
+    const tag = document.createElement("script");
+    tag.src = "https://www.youtube.com/iframe_api";
+    document.head.appendChild(tag);
+
+    // Called automatically by the YouTube API
+    function onYouTubeIframeAPIReady() {
+      player = new YT.Player("player", {
+        height: "390",
+        width: "640",
+        videoId: "X9PSYM0qm8o",
+        playerVars: {
+          playsinline: 1
+        }
+      });
+    }
+
+    function announceTime(seconds) {
+      const utterance = new SpeechSynthesisUtterance(
+        `The video time is ${seconds} seconds`
+      );
+
+      // Reduce volume to 50%
+      player.setVolume(50);
+
+      utterance.onend = () => {
+        // Restore volume after speech
+        player.setVolume(100);
+      };
+
+      speechSynthesis.speak(utterance);
+    }
+
+    document.getElementById("startBtn").addEventListener("click", () => {
+      // Required user interaction
+      player.playVideo();
+
+      if (checkTimer) return;
+
+      checkTimer = setInterval(() => {
+        const currentTime = Math.floor(player.getCurrentTime());
+
+        // Trigger exactly when the video time hits a multiple of 10 seconds
+        if (
+          currentTime > 0 &&
+          currentTime % 10 === 0 &&
+          currentTime !== lastAnnouncedSecond
+        ) {
+          lastAnnouncedSecond = currentTime;
+          announceTime(currentTime);
+        }
+      }, 200); // frequent polling to avoid missing exact seconds
+    });
+  </script>
+</body>
+</html>
