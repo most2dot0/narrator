@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>YouTube Playlist Narration (Configurable Speech + Volume)</title>
+</head>
+<body>
+  <button id="startBtn">Start Playlist</button>
+  <div id="player"></div>
+
+  <script>
+    /* ================= CONFIGURATION ================= */
+
+    const config = {
+      player: {
+        volume: {
+          normal: 100,
+          duringSpeech: 50
+        }
+      },
+      speech: {
+        volume: 0.9,   // 0.0 – 1.0
+        rate: 1.0,
+        pitch: 1.0
+      },
+      playlist: [
+        {
+          url: "https://www.youtube.com/watch?v=d3gSho9yf88",
+          startTime: 12,
+          endTime: 27
+        },
+        {
+          url: "https://www.youtube.com/watch?v=d3gSho9yf88",
+          startTime: 180,
+          endTime: 250,
+          utterances: [
+            {
+              time: 181,
+              text: "In early 2014, Angelina auditioned for Norway's Got Talent in Norway. The audition was aired and put on YouTube in early March that year. It immediatly went viral, gathering 5 Million views within weeks.",
+              volumeDuring: 40
+            },
+            {
+              time: 237,
+              text: "Afte she won the show, the gathered even more worldwide interest. Angelina premiered in the US on the show 'The View' later in 2014.",
+              volumeDuring: 40
+            }
+          ]
+        },
+        {
+          url: "https://www.youtube.com/watch?v=nBGMQ9Kx9iI",
+          startTime: 03,
+		  endTime: 10
+        },
+        {
+          url: "https://www.youtube.com/watch?v=nBGMQ9Kx9iI",
+          startTime: 41,
+		  endTime: 58
+        },
+        {
+          url: "https://www.youtube.com/watch?v=nBGMQ9Kx9iI",
+          startTime: 100,
+		  endTime: 119
+        },
+        {
+          url: "https://www.youtube.com/watch?v=nwFloCPXzCs",
+          startTime: 30,
+          utterances: [
+            {
+              time: 35,
+              text: "This section starts slightly later",
+              pitch: 1.2
+            },
+            {
+              time: 60,
+              text: "Second note for the second video",
+              volumeAfter: 90,
+              lang: "en-US"
+            }
+          ]
+        }
+      ]
+    };
+
+    /* ================= STATE ================= */
+
+    let player;
+    let playlistIndex = 0;
+    let checkTimer = null;
+    let spokenTimes = new Set();
+
+    /* ================= YOUTUBE API ================= */
+
+    const tag = document.createElement("script");
+    tag.src = "https://www.youtube.com/iframe_api";
+    document.head.appendChild(tag);
+
+    function onYouTubeIframeAPIReady() {
+      player = new YT.Player("player", {
+        height: "390",
+        width: "640",
+        playerVars: { playsinline: 1 }
+      });
+    }
+
+    /* ================= UTILITIES ================= */
+
+    function getVideoId(url) {
+      return new URL(url).searchParams.get("v");
+    }
+
+    function loadCurrentVideo() {
+      spokenTimes.clear();
+      const entry = config.playlist[playlistIndex];
+
+      player.loadVideoById({
+        videoId: getVideoId(entry.url),
+        startSeconds: entry.startTime ?? 0
+      });
+    }
+
+    /* ================= SPEECH ================= */
+
+    function speakUtterance(utterance) {
+      const volumeDuring =
+        utterance.volumeDuring ?? config.player.volume.duringSpeech;
+      const volumeAfter =
+        utterance.volumeAfter ?? config.player.volume.normal;
+
+      const speech = new SpeechSynthesisUtterance(utterance.text);
+
+      speech.lang = utterance.lang ?? config.speech.lang;
+      speech.volume = utterance.speechVolume ?? config.speech.volume;
+      speech.rate = utterance.rate ?? config.speech.rate;
+      speech.pitch = utterance.pitch ?? config.speech.pitch;
+
+      player.setVolume(volumeDuring);
+
+      speech.onend = () => {
+        player.setVolume(volumeAfter);
+      };
+
+      speechSynthesis.speak(speech);
+    }
+
+    /* ================= PLAYBACK LOOP ================= */
+
+    function checkPlayback() {
+      const entry = config.playlist[playlistIndex];
+      const currentTime = Math.floor(player.getCurrentTime());
+
+      // Trigger utterances
+      if (entry.utterances) {
+        for (const u of entry.utterances) {
+          if (currentTime >= u.time && !spokenTimes.has(u.time)) {
+            spokenTimes.add(u.time);
+            speakUtterance(u);
+          }
+        }
+      }
+
+      // Advance to next video
+      const endTime = entry.endTime ?? player.getDuration();
+      if (currentTime >= endTime) {
+        playlistIndex++;
+        if (playlistIndex < config.playlist.length) {
+          loadCurrentVideo();
+        } else {
+          clearInterval(checkTimer);
+        }
+      }
+    }
+
+    /* ================= USER INTERACTION ================= */
+
+    document.getElementById("startBtn").addEventListener("click", () => {
+      if (!player) return;
+
+      playlistIndex = 0;
+      loadCurrentVideo();
+
+      if (!checkTimer) {
+        checkTimer = setInterval(checkPlayback, 200);
+      }
+    });
+  </script>
+</body>
+</html>
